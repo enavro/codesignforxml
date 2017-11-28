@@ -26,7 +26,8 @@ namespace CodeSignForXml
             string signedXml;
             X509Certificate2 privateCert = null;
             X509Certificate2 publicCert = null;
-            bool pfxKey;
+            bool pfxKey=false;
+            bool hsmKey=false;
 
             if (args.Length < 4)
             {
@@ -34,16 +35,17 @@ namespace CodeSignForXml
                     "Pfx Usage: SignXml.exe PFX {signMethod} {cert.pfx} {publicCert.cer} {signable xml} {signMethod}: SHA1 | SHA256 | SHA384 | SHA512");
                 Console.WriteLine(
                     "Token Usage: SignXml.exe TOKEN {signMethod} {publicCert.cer} {signable xml} {signMethod}: SHA1 | SHA256 | SHA384 | SHA512");
+                Console.WriteLine(
+                    "HSM Usage: SignXml.exe HSM {signMethod} {publicCertStore} {cryptoProvider} {keyContainerName} {publicCertThumbprint} {signable xml} {signMethod}: SHA1 | SHA256 | SHA384 | SHA512");
                 return;
             }
 
-            if (args[0] == "PFX")
+            signingMethod = args[1];
+
+            if (String.Equals("PFX", args[0], StringComparison.InvariantCultureIgnoreCase))
             {
                 Console.Write("Input password:");
                 string pswd = Console.ReadLine().Trim();
-
-                signingMethod = args[1];
-
                 privateCert = new X509Certificate2(args[2], pswd, X509KeyStorageFlags.Exportable);
                 publicCert = new X509Certificate2(args[3]);
 
@@ -52,10 +54,19 @@ namespace CodeSignForXml
 
                 pfxKey = true;
             }
+            else if(String.Equals("HSM", args[0], StringComparison.InvariantCultureIgnoreCase))
+            {
+                X509Certificate2Collection store = new X509Certificate2Collection();
+                try
+                {
+                    store.Import(args[2]);
+                }catch{
+                    
+                }
+                hsmKey = true;
+            }
             else
             {
-                signingMethod = args[1];
-
                 publicCert = new X509Certificate2(args[2]);
 
                 inputFile = Path.GetFullPath(args[3]);
@@ -111,9 +122,10 @@ namespace CodeSignForXml
         /// <param name="xmlString"></param>
         /// <param name="privateCert"></param>
         /// <param name="publicCert"></param>
+        /// <param name="hsmKey">True if using an HSM key.</param>
         /// <returns></returns>
         public static string SignSHA256(bool pfxKey, string xmlString, X509Certificate2 privateCert,
-            X509Certificate publicCert, XmlDsigSigningConfig config)
+            X509Certificate publicCert, XmlDsigSigningConfig config, bool hsmKey=false)
         {
             // Load an XML file into the XmlDocument object.
             var xmlDoc = new XmlDocument();
